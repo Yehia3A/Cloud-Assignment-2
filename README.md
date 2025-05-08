@@ -101,6 +101,6 @@ Follow these steps to set up the system in AWS (region: `us-east-1`):
 
 ## Bonus: Exported CloudFormation Template
 Included is a CloudFormation template (`order-system.yaml`) that codifies the entire infrastructure, including SNS, SQS, Lambda, and DynamoDB resources. Deploy this template to recreate the system:
-- Upload `order-system.yaml` to the CloudFormation console.
+- Upload `CF-Order-System.yaml` to the CloudFormation console.
 - Create a stack with the name `OrderSystemStack`.
 - Verify the resources in the AWS Console after deployment.
