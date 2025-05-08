@@ -1,0 +1,180 @@
+# CloudFormation template for an event-driven order notification system
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Event-driven order notification system using SNS, SQS, Lambda, and DynamoDB
+
+Resources:
+  # DynamoDB Table for Orders
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Orders
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # SNS Topic for Order Notifications
+  OrderTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: OrderTopic
+
+  # SQS Dead Letter Queue
+  OrderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: OrderDLQ
+
+  # SQS Queue for Orders
+  OrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: OrderQueue
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderDLQ.Arn
+        maxReceiveCount: 3
+
+  # SNS Subscription to SQS
+  OrderQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref OrderTopic
+      Endpoint: !GetAtt OrderQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt OrdersTable.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt OrderQueue.Arn
+
+  # Lambda Function
+  OrderProcessorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: OrderProcessor
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          dynamodb = boto3.resource('dynamodb')
+          table = dynamodb.Table('Orders')
+
+          def handler(event, context):
+              for record in event['Records']:
+                  try:
+                      # Parse SQS message body directly (raw message delivery)
+                      order = json.loads(record['body'])
+                      
+                      # Validate required fields
+                      required_fields = ['orderId', 'userId', 'itemName', 'quantity', 'status', 'timestamp']
+                      if not all(field in order for field in required_fields):
+                          raise ValueError(f"Missing required fields: {required_fields}")
+                      
+                      # Log the event
+                      logger.info(f"Processing order: {order['orderId']}")
+                      
+                      # Save to DynamoDB
+                      table.put_item(
+                          Item={
+                              'orderId': order['orderId'],
+                              'userId': order['userId'],
+                              'itemName': order['itemName'],
+                              'quantity': order['quantity'],
+                              'status': order['status'],
+                              'timestamp': order['timestamp']
+                          }
+                      )
+                      logger.info(f"Order {order['orderId']} saved to DynamoDB")
+                  except Exception as e:
+                      logger.error(f"Error processing order: {str(e)}")
+                      raise e
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Successfully processed orders')
+              }
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OrdersTable
+
+  # Lambda SQS Trigger
+  LambdaSQSTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OrderQueue.Arn
+      FunctionName: !GetAtt OrderProcessorLambda.Arn
+      Enabled: true
+      BatchSize: 10
+
+  # SQS Queue Policy for SNS
+  OrderQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref OrderQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt OrderQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref OrderTopic
+
+Outputs:
+  OrderTopicArn:
+    Description: ARN of the Order SNS Topic
+    Value: !Ref OrderTopic
+  OrderQueueUrl:
+    Description: URL of the Order SQS Queue
+    Value: !Ref OrderQueue
+  OrdersTableName:
+    Description: Name of the Orders DynamoDB Table
+    Value: !Ref OrdersTable
+  LambdaFunctionName:
+    Description: Name of the Order Processor Lambda Function
+    Value: !Ref OrderProcessorLambda
