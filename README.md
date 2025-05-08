@@ -100,7 +100,7 @@ Follow these steps to set up the system in AWS (region: `us-east-1`):
    - Click **Send and receive messages** > **Poll for messages** to debug.
 
 ## Bonus: Exported CloudFormation Template
-Included is a CloudFormation template (`order-system.yaml`) that codifies the entire infrastructure, including SNS, SQS, Lambda, and DynamoDB resources. Deploy this template to recreate the system:
+Included is a CloudFormation template (`CF-Order-System.yaml`) that codifies the entire infrastructure, including SNS, SQS, Lambda, and DynamoDB resources. Deploy this template to recreate the system:
 - Upload `CF-Order-System.yaml` to the CloudFormation console.
 - Create a stack with the name `OrderSystemStack`.
 - Verify the resources in the AWS Console after deployment.
