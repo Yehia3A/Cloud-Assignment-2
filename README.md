@@ -68,8 +68,6 @@ Follow these steps to set up the system in AWS (region: `us-east-1`):
    - Republish the test message using the JSON above.
    - Go to the SQS console, select `OrderQueue`.
    - Click **Send and receive messages** > **Poll for messages**.
-   - Take a screenshot of the message.
-
 3. **Process the Message**:
    - Re-enable the SQS trigger (set **Enabled** to "Yes").
    - Republish the test message using the JSON above.
@@ -93,7 +91,6 @@ Follow these steps to set up the system in AWS (region: `us-east-1`):
          "timestamp": "2025-05-03T12:00:00Z"
      }
      ```
-   - Take a screenshot.
 
 5. **Check Dead-Letter Queue (Optional)**:
    - If processing fails, go to the SQS console, select `OrderQueueDLQ`.
