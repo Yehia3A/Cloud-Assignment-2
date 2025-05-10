@@ -1,8 +1,4 @@
 # Assignment 2: Event-Driven Order Notification System
-
-## Overview
-This project builds an event-driven system using AWS services to process order notifications. An SNS topic (`OrderTopic`) publishes order messages, which are received by an SQS queue (`OrderQueue`). A Lambda function (`OrderProcessor`) processes the messages and stores them in a DynamoDB table (`Orders`). A dead-letter queue (`OrderQueueDLQ`) captures failed messages for debugging.
-
 ## Setup Instructions
 Follow these steps to set up the system in AWS (region: `us-east-1`):
 
@@ -95,6 +91,10 @@ Follow these steps to set up the system in AWS (region: `us-east-1`):
 5. **Check Dead-Letter Queue (Optional)**:
    - If processing fails, go to the SQS console, select `OrderQueueDLQ`.
    - Click **Send and receive messages** > **Poll for messages** to debug.
+## Explanation (max 1 page) of how visibility timeout and DLQ were useful
+In my Event-Driven Order Notification System built for Assignment 2, I found the visibility timeout and Dead-Letter Queue (DLQ) to be essential SQS features that greatly improved reliability and fault tolerance. I set the visibility timeout to 30 seconds for OrderQueueNew, which determines how long a message remains invisible to other consumers after my Lambda function OrderProcessor picks it up. This prevented duplicate processing by ensuring only one Lambda instance handled the message at a time. If my Lambda failed to process the message within 30 seconds—say, due to a timeout or error—the message became visible again, allowing another attempt. This approach ensured that messages weren’t lost during temporary failures, aligning with my goal of reliable order processing.
+
+I also implemented the DLQ as OrderQueueDLQ to serve as a safety net for messages that repeatedly failed. I configured OrderQueueNew with a RedrivePolicy that moves messages to the DLQ after three failed attempts (maxReceiveCount: 3). This stopped infinite retries, which could have overwhelmed my system, and isolated problematic messages for me to debug later. For instance, if my Lambda encountered issues like malformed data or DynamoDB write errors, the message went to the DLQ, letting my system keep processing other orders while I investigated. Together, my use of visibility timeout and DLQ ensured robust error handling, minimized message loss, and maintained system stability in my event-driven architecture.
 
 ## Bonus: Exported CloudFormation Template
 Included is a CloudFormation template (`CF-Order-System.yaml`) that codifies the entire infrastructure, including SNS, SQS, Lambda, and DynamoDB resources. Deploy this template to recreate the system:
